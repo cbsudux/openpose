@@ -32,58 +32,59 @@ set(PASCAL "60 61 62")
 set(VOLTA "70") # set(VOLTA "70 71 72") # This crashes with CUDA 10
 # Turing (CUDA >= 10)
 set(TURING "75")
-# if (UNIX AND NOT APPLE)
-#  set(Caffe_known_gpu_archs "${KEPLER} ${MAXWELL} ${PASCAL} ${VOLTA} ${TURING}")
+if (UNIX AND NOT APPLE)
+  set(Caffe_known_gpu_archs "${KEPLER} ${MAXWELL} ${PASCAL} ${VOLTA} ${TURING}")
   # set(Caffe_known_gpu_archs "${FERMI} ${KEPLER} ${MAXWELL} ${PASCAL} ${VOLTA} ${TURING}")
   # set(Caffe_known_gpu_archs "20 21(20) 30 35 50 52 60 61")
-# elseif (WIN32)
-#  set(Caffe_known_gpu_archs "${KEPLER} ${MAXWELL} ${PASCAL} ${VOLTA} ${TURING}")
+elseif (WIN32)
+  set(Caffe_known_gpu_archs "${KEPLER} ${MAXWELL} ${PASCAL} ${VOLTA} ${TURING}")
 endif ()
 
-# ################################################################################################
-# # A function for automatic detection of GPUs installed  (if autodetection is enabled)
-# # Usage:
-# #   op_detect_installed_gpus(out_variable)
-# function(op_detect_installed_gpus out_variable)
-#   if (NOT CUDA_gpu_detect_output)
-#     set(__cufile ${PROJECT_BINARY_DIR}/detect_cuda_archs.cu)
 
-#     file(WRITE ${__cufile} ""
-#       "#include <cstdio>\n"
-#       "int main()\n"
-#       "{\n"
-#       "  int count = 0;\n"
-#       "  if (cudaSuccess != cudaGetDeviceCount(&count)) return -1;\n"
-#       "  if (count == 0) return -1;\n"
-#       "  for (int device = 0; device < count; ++device)\n"
-#       "  {\n"
-#       "    cudaDeviceProp prop;\n"
-#       "    if (cudaSuccess == cudaGetDeviceProperties(&prop, device))\n"
-#       "      std::printf(\"%d.%d \", prop.major, prop.minor);\n"
-#       "  }\n"
-#       "  return 0;\n"
-#       "}\n")
+################################################################################################
+# A function for automatic detection of GPUs installed  (if autodetection is enabled)
+# Usage:
+#   op_detect_installed_gpus(out_variable)
+function(op_detect_installed_gpus out_variable)
+  if (NOT CUDA_gpu_detect_output)
+    set(__cufile ${PROJECT_BINARY_DIR}/detect_cuda_archs.cu)
 
-#     execute_process(COMMAND "${CUDA_NVCC_EXECUTABLE}" "--run" "${__cufile}"
-#                     WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/CMakeFiles/"
-#                     RESULT_VARIABLE __nvcc_res OUTPUT_VARIABLE __nvcc_out
-#                     ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+    file(WRITE ${__cufile} ""
+      "#include <cstdio>\n"
+      "int main()\n"
+      "{\n"
+      "  int count = 0;\n"
+      "  if (cudaSuccess != cudaGetDeviceCount(&count)) return -1;\n"
+      "  if (count == 0) return -1;\n"
+      "  for (int device = 0; device < count; ++device)\n"
+      "  {\n"
+      "    cudaDeviceProp prop;\n"
+      "    if (cudaSuccess == cudaGetDeviceProperties(&prop, device))\n"
+      "      std::printf(\"%d.%d \", prop.major, prop.minor);\n"
+      "  }\n"
+      "  return 0;\n"
+      "}\n")
 
-#     if (__nvcc_res EQUAL 0)
-#       if (NOT WIN32)
-#         string(REPLACE "2.1" "2.1(2.0)" __nvcc_out "${__nvcc_out}")
-#       endif (NOT WIN32)
-#       set(CUDA_gpu_detect_output ${__nvcc_out} CACHE INTERNAL "Returned GPU architetures from op_detect_gpus tool" FORCE)
-#     endif ()
-#   endif ()
+    execute_process(COMMAND "${CUDA_NVCC_EXECUTABLE}" "--run" "${__cufile}"
+                    WORKING_DIRECTORY "${PROJECT_BINARY_DIR}/CMakeFiles/"
+                    RESULT_VARIABLE __nvcc_res OUTPUT_VARIABLE __nvcc_out
+                    ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-#   if (NOT CUDA_gpu_detect_output)
-#     message(STATUS "Automatic GPU detection failed. Building for all known architectures.")
-#     set(${out_variable} ${Caffe_known_gpu_archs} PARENT_SCOPE)
-#   else ()
-#     set(${out_variable} ${CUDA_gpu_detect_output} PARENT_SCOPE)
-#   endif ()
-# endfunction()
+    if (__nvcc_res EQUAL 0)
+      if (NOT WIN32)
+        string(REPLACE "2.1" "2.1(2.0)" __nvcc_out "${__nvcc_out}")
+      endif (NOT WIN32)
+      set(CUDA_gpu_detect_output ${__nvcc_out} CACHE INTERNAL "Returned GPU architetures from op_detect_gpus tool" FORCE)
+    endif ()
+  endif ()
+
+  if (NOT CUDA_gpu_detect_output)
+    message(STATUS "Automatic GPU detection failed. Building for all known architectures.")
+    set(${out_variable} ${Caffe_known_gpu_archs} PARENT_SCOPE)
+  else ()
+    set(${out_variable} ${CUDA_gpu_detect_output} PARENT_SCOPE)
+  endif ()
+endfunction()
 
 
 ################################################################################################
@@ -93,14 +94,12 @@ endif ()
 function(op_select_nvcc_arch_flags out_variable)
   # List of arch names
   set(__archs_names "Kepler (CUDA >= 5)" "Maxwell (CUDA >= 6)" "Pascal (CUDA >= 8)" "Volta (CUDA >= 9)" "Turing (CUDA >= 10)" "All" "Manual")
-
   # set(__archs_names "Fermi (3.2 <= CUDA <= 8)" "Kepler (CUDA >= 5)" "Maxwell (CUDA >= 6)" "Pascal (CUDA >= 8)" "Volta (CUDA >= 9)" "Turing (CUDA >= 10)" "All" "Manual")
-  # set(__archs_name_default "All")
-
-  # if (NOT CMAKE_CROSSCOMPILING)
-  #   list(APPEND __archs_names "Auto")
-  #   set(__archs_name_default "Auto")
-  # endif ()
+  set(__archs_name_default "All")
+  if (NOT CMAKE_CROSSCOMPILING)
+    list(APPEND __archs_names "Auto")
+    set(__archs_name_default "Auto")
+  endif ()
 
   # set CUDA_ARCH strings (so it will be seen as dropbox in CMake-Gui)
   # set(CUDA_ARCH ${__archs_name_default} CACHE STRING "Select target NVIDIA GPU achitecture.")
