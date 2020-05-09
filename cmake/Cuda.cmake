@@ -1,11 +1,25 @@
+# Copied from Caffe
+
+# More info on available architectures vs. CUDA version:
+# http://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards/
+
 if (CPU_ONLY)
   return()
 endif ()
 
-# Known NVIDIA GPU achitectures Caffe can be compiled for.
-# This list will be used for CUDA_ARCH_NAME = All option
-# set(Caffe_known_gpu_archs "30 35 50 52 60 61")
-# set(Caffe_known_gpu_archs "20 21(20) 30 35 50 60 61")
+################################################################################################
+# Remove duplicates from list(s)
+# Usage:
+#   op_list_unique(<list_variable> [<list_variable>] [...])
+macro(op_list_unique)
+  foreach(__lst ${ARGN})
+    if (${__lst})
+      list(REMOVE_DUPLICATES ${__lst})
+    endif ()
+  endforeach()
+endmacro()
+
+# This list will be used for CUDA_ARCH = All option
 # Fermi (3.2 <= CUDA <= 8)
 set(FERMI "20 21(20)")
 # Kepler (CUDA >= 5)
@@ -30,8 +44,8 @@ endif ()
 ################################################################################################
 # A function for automatic detection of GPUs installed  (if autodetection is enabled)
 # Usage:
-#   caffe_detect_installed_gpus(out_variable)
-function(caffe_detect_installed_gpus out_variable)
+#   op_detect_installed_gpus(out_variable)
+function(op_detect_installed_gpus out_variable)
   if (NOT CUDA_gpu_detect_output)
     set(__cufile ${PROJECT_BINARY_DIR}/detect_cuda_archs.cu)
 
@@ -60,7 +74,7 @@ function(caffe_detect_installed_gpus out_variable)
       if (NOT WIN32)
         string(REPLACE "2.1" "2.1(2.0)" __nvcc_out "${__nvcc_out}")
       endif (NOT WIN32)
-      set(CUDA_gpu_detect_output ${__nvcc_out} CACHE INTERNAL "Returned GPU architetures from caffe_detect_gpus tool" FORCE)
+      set(CUDA_gpu_detect_output ${__nvcc_out} CACHE INTERNAL "Returned GPU architetures from op_detect_gpus tool" FORCE)
     endif ()
   endif ()
 
@@ -74,57 +88,56 @@ endfunction()
 
 
 ################################################################################################
-# Function for selecting GPU arch flags for nvcc based on CUDA_ARCH_NAME
+# Function for selecting GPU arch flags for nvcc based on CUDA_ARCH
 # Usage:
-#   caffe_select_nvcc_arch_flags(out_variable)
-function(caffe_select_nvcc_arch_flags out_variable)
+#   op_select_nvcc_arch_flags(out_variable)
+function(op_select_nvcc_arch_flags out_variable)
   # List of arch names
-  set(__archs_names "Kepler" "Maxwell" "Pascal" "Volta" "Turing" "All" "Manual")
-  # set(__archs_names "Fermi" "Kepler" "Maxwell" "Pascal" "Volta" "Turing" "All" "Manual")
-  # set(__archs_names "Fermi" "Kepler" "Maxwell" "Pascal" "All" "Manual")
+  set(__archs_names "Kepler (CUDA >= 5)" "Maxwell (CUDA >= 6)" "Pascal (CUDA >= 8)" "Volta (CUDA >= 9)" "Turing (CUDA >= 10)" "All" "Manual")
+  # set(__archs_names "Fermi (3.2 <= CUDA <= 8)" "Kepler (CUDA >= 5)" "Maxwell (CUDA >= 6)" "Pascal (CUDA >= 8)" "Volta (CUDA >= 9)" "Turing (CUDA >= 10)" "All" "Manual")
   set(__archs_name_default "All")
   if (NOT CMAKE_CROSSCOMPILING)
     list(APPEND __archs_names "Auto")
     set(__archs_name_default "Auto")
   endif ()
 
-  # set CUDA_ARCH_NAME strings (so it will be seen as dropbox in CMake-Gui)
-  set(CUDA_ARCH_NAME ${__archs_name_default} CACHE STRING "Select target NVIDIA GPU achitecture.")
-  set_property( CACHE CUDA_ARCH_NAME PROPERTY STRINGS "" ${__archs_names} )
-  mark_as_advanced(CUDA_ARCH_NAME)
+  # set CUDA_ARCH strings (so it will be seen as dropbox in CMake-Gui)
+  # set(CUDA_ARCH ${__archs_name_default} CACHE STRING "Select target NVIDIA GPU achitecture.")
+  # set_property( CACHE CUDA_ARCH PROPERTY STRINGS "" ${__archs_names} )
+  # mark_as_advanced(CUDA_ARCH)
 
-  # verify CUDA_ARCH_NAME value
-  if (NOT ";${__archs_names};" MATCHES ";${CUDA_ARCH_NAME};")
+  # verify CUDA_ARCH value
+  if (NOT ";${__archs_names};" MATCHES ";${CUDA_ARCH};")
     string(REPLACE ";" ", " __archs_names "${__archs_names}")
     message(FATAL_ERROR "Only ${__archs_names} architeture names are supported.")
   endif ()
 
-  if (${CUDA_ARCH_NAME} STREQUAL "Manual")
+  if (${CUDA_ARCH} STREQUAL "Manual")
     set(CUDA_ARCH_BIN ${Caffe_known_gpu_archs} CACHE STRING "Specify 'real' GPU architectures to build binaries for, BIN(PTX) format is supported")
     set(CUDA_ARCH_PTX "50"                     CACHE STRING "Specify 'virtual' PTX architectures to build PTX intermediate code for")
-    mark_as_advanced(CUDA_ARCH_BIN CUDA_ARCH_PTX)
+    # mark_as_advanced(CUDA_ARCH_BIN CUDA_ARCH_PTX)
   else ()
     unset(CUDA_ARCH_BIN CACHE)
     unset(CUDA_ARCH_PTX CACHE)
   endif ()
 
-  if (${CUDA_ARCH_NAME} STREQUAL "Fermi" AND NOT WIN32)
+  if (${CUDA_ARCH} STREQUAL "Fermi (3.2 <= CUDA <= 8)" AND NOT WIN32)
     set(__cuda_arch_bin ${FERMI})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Kepler")
+  elseif (${CUDA_ARCH} STREQUAL "Kepler (CUDA >= 5)")
     set(__cuda_arch_bin ${KEPLER})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Maxwell")
+  elseif (${CUDA_ARCH} STREQUAL "Maxwell (CUDA >= 6)")
     set(__cuda_arch_bin ${MAXWELL})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Pascal")
+  elseif (${CUDA_ARCH} STREQUAL "Pascal (CUDA >= 8)")
     set(__cuda_arch_bin ${PASCAL})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Volta")
+  elseif (${CUDA_ARCH} STREQUAL "Volta (CUDA >= 9)")
     set(__cuda_arch_bin ${VOLTA})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Turing")
+  elseif (${CUDA_ARCH} STREQUAL "Turing (CUDA >= 10)")
     set(__cuda_arch_bin ${TURING})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "All")
+  elseif (${CUDA_ARCH} STREQUAL "All")
     set(__cuda_arch_bin ${Caffe_known_gpu_archs})
-  elseif (${CUDA_ARCH_NAME} STREQUAL "Auto")
-    caffe_detect_installed_gpus(__cuda_arch_bin)
-  else ()  # (${CUDA_ARCH_NAME} STREQUAL "Manual")
+  elseif (${CUDA_ARCH} STREQUAL "Auto")
+    op_detect_installed_gpus(__cuda_arch_bin)
+  else ()  # (${CUDA_ARCH} STREQUAL "Manual")
     set(__cuda_arch_bin ${CUDA_ARCH_BIN})
   endif ()
 
@@ -133,16 +146,10 @@ function(caffe_select_nvcc_arch_flags out_variable)
   string(REGEX REPLACE "\\." "" __cuda_arch_ptx "${CUDA_ARCH_PTX}")
   string(REGEX MATCHALL "[0-9()]+" __cuda_arch_bin "${__cuda_arch_bin}")
   string(REGEX MATCHALL "[0-9]+"   __cuda_arch_ptx "${__cuda_arch_ptx}")
-  caffe_list_unique(__cuda_arch_bin __cuda_arch_ptx)
+  op_list_unique(__cuda_arch_bin __cuda_arch_ptx)
 
   set(__nvcc_flags "")
   set(__nvcc_archs_readable "")
-
-  string(COMPARE LESS "${CUDA_VERSION}" "9.0" iscudaolderthan90)
-  if (NOT iscudaolderthan90)
-    string(REPLACE "21(20)" "" __cuda_arch_bin "${__cuda_arch_bin}")
-    string(REPLACE "20" "" __cuda_arch_bin "${__cuda_arch_bin}")
-  endif ()
 
   # Tell NVCC to add binaries for the specified GPUs
   foreach(__arch ${__cuda_arch_bin})
@@ -171,8 +178,8 @@ endfunction()
 ################################################################################################
 # Short command for cuda compilation
 # Usage:
-#   caffe_cuda_compile(<objlist_variable> <cuda_files>)
-macro(caffe_cuda_compile objlist_variable)
+#   op_cuda_compile(<objlist_variable> <cuda_files>)
+macro(op_cuda_compile objlist_variable)
   foreach(var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_DEBUG)
     set(${var}_backup_in_cuda_compile_ "${${var}}")
 
@@ -267,7 +274,7 @@ endfunction()
 ################################################################################################
 
 find_package(CUDA 5.5 QUIET)
-find_cuda_helper_libs(curand)  # cmake 2.8.7 compatibility which doesn't search for curand
+find_cuda_helper_libs(curand)  # cmake 2.8.7 compartibility which doesn't search for curand
 
 if (NOT CUDA_FOUND)
   return()
@@ -290,7 +297,7 @@ if (USE_CUDNN)
 endif ()
 
 # setting nvcc arch flags
-caffe_select_nvcc_arch_flags(NVCC_FLAGS_EXTRA)
+op_select_nvcc_arch_flags(NVCC_FLAGS_EXTRA)
 list(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
 message(STATUS "Added CUDA NVCC flags for: ${NVCC_FLAGS_EXTRA_readable}")
 
@@ -317,11 +324,11 @@ mark_as_advanced(CUDA_SDK_ROOT_DIR CUDA_SEPARABLE_COMPILATION)
 
 # Handle clang/libc++ issue
 if (APPLE)
-  caffe_detect_darwin_version(OSX_VERSION)
+  op_detect_darwin_version(OSX_VERSION)
 
   # OSX 10.9 and higher uses clang/libc++ by default which is incompatible with old CUDA toolkits
   if (OSX_VERSION VERSION_GREATER 10.8)
     # enabled by default if and only if CUDA version is less than 7.0
-    caffe_option(USE_libstdcpp "Use libstdc++ instead of libc++" (CUDA_VERSION VERSION_LESS 7.0))
+    op_option(USE_libstdcpp "Use libstdc++ instead of libc++" (CUDA_VERSION VERSION_LESS 7.0))
   endif ()
 endif ()
